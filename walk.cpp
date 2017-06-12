@@ -398,12 +398,13 @@ void physics(void)
             timers.recordTime(&timers.walkTime);
         }
         for (int i=0; i<20; i++) {
+	// if == 1
             gl.box[i][0] -= 2.0 * (0.05 / gl.delay);  // += : right, -+ : left
             if (gl.box[i][0] < -10.0) //
                 gl.box[i][0] += gl.xres + 10.0;
         }
     }
-    
+  /*  
     if (gl.keys[XK_Left]) {
         //man is walking...
         //when time is up, advance the frame.
@@ -419,10 +420,10 @@ void physics(void)
         for (int i=0; i<20; i++) {
             gl.box[i][0] += 2.0 * (0.05 / gl.delay);  // += : right, -+ : left
             if (gl.box[i][0] < -10.0) //
-                gl.box[i][0] += gl.xres + 10.0;
+                gl.box[i][0] -= gl.xres + 10.0;
         }
     }
-    
+    */
 
 }
 
