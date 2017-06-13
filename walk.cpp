@@ -1,3 +1,4 @@
+// Modified by: Cheyenne Thomas
 //3350
 //program: walk.cpp
 //author:  Gordon Griesel
@@ -295,10 +296,10 @@ void checkMouse(XEvent *e)
         return;
     }
     if (e->type == ButtonPress) {
-        if (e->xbutton.button==1) {
+        if (e->xbutton.button == 1) {
             //Left button is down
         }
-        if (e->xbutton.button==3) {
+        if (e->xbutton.button == 3) {
             //Right button is down
         }
     }
@@ -312,7 +313,7 @@ void checkMouse(XEvent *e)
 void checkKeys(XEvent *e)
 {
     //keyboard input?
-    static int shift=0;
+    static int shift =0 ;
     int key = XLookupKeysym(&e->xkey, 0);
     if (e->type == KeyRelease) {
         gl.keys[key] = 0;
@@ -334,15 +335,16 @@ void checkKeys(XEvent *e)
     switch (key) {
         case XK_w:
             timers.recordTime(&timers.walkTime);
-            gl.walk ^= 1;
+            //gl.walk ^= 1;
+            gl.walk = 1;
             break;
         case XK_Left:
             timers.recordTime(&timers.walkTime);
-            gl.walk ^= 2;
+            gl.walk = 2;
             break;
         case XK_Right:
             timers.recordTime(&timers.walkTime);
-            gl.walk ^= 1;
+            gl.walk = 1;
             break;
         case XK_Up:
             break;
@@ -357,7 +359,7 @@ void checkKeys(XEvent *e)
             gl.delay += 0.005;
             break;
         case XK_Escape:
-            gl.done=1;
+            gl.done = 1;
             break;
     }
 
@@ -385,7 +387,7 @@ Flt VecNormalize(Vec vec)
 
 void physics(void)
 {
-    if (gl.walk || gl.keys[XK_Right]) {
+    if (gl.walk || gl.keys[XK_Right] || gl.keys[XK_Left]) {
         //man is walking...
         //when time is up, advance the frame.
         timers.recordTime(&timers.timeCurrent);
@@ -397,48 +399,35 @@ void physics(void)
                 gl.walkFrame -= 16;
             timers.recordTime(&timers.walkTime);
         }
-        for (int i=0; i<20; i++) {
-	// if == 1
-            gl.box[i][0] -= 2.0 * (0.05 / gl.delay);  // += : right, -+ : left
-            if (gl.box[i][0] < -10.0) //
-                gl.box[i][0] += gl.xres + 10.0;
+        
+	for (int i=0; i<20; i++) {
+	    if (gl.walk == 1) {
+		// boxes move left
+                gl.box[i][0] -= 2.0 * (0.05 / gl.delay); 
+                if (gl.box[i][0] < -10.0) 
+                    gl.box[i][0] += gl.xres + 10.0;
+            } else if (gl.walk == 2) {
+		// boxes move right
+                gl.box[i][0] += 2.0 * (0.05 / gl.delay);  
+                if (gl.box[i][0] > gl.xres + 10.0) 
+                    gl.box[i][0] -= gl.xres + 10.0;
+              }
         }
-    }
-  /*  
-    if (gl.keys[XK_Left]) {
-        //man is walking...
-        //when time is up, advance the frame.
-        timers.recordTime(&timers.timeCurrent);
-        double timeSpan = timers.timeDiff(&timers.walkTime, &timers.timeCurrent);
-        if (timeSpan > gl.delay) {
-            //advance
-            ++gl.walkFrame;
-            if (gl.walkFrame >= 16)
-                gl.walkFrame -= 16;
-            timers.recordTime(&timers.walkTime);
-        }
-        for (int i=0; i<20; i++) {
-            gl.box[i][0] += 2.0 * (0.05 / gl.delay);  // += : right, -+ : left
-            if (gl.box[i][0] < -10.0) //
-                gl.box[i][0] -= gl.xres + 10.0;
-        }
-    }
-    */
-
+    } 
 }
 
 void render(void)
 {
     Rect r;
     //Clear the screen
-    glClearColor(0.1, 0.1, 0.1, 1.0);
+    glClearColor(0, 0, 1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     float cx = gl.xres/2.0;
     float cy = gl.yres/2.0;
     //
     //show ground
     glBegin(GL_QUADS);
-        glColor3f(0.2, 0.1, 0.2); // changed .2 to .1 
+        glColor3f(0, 1, 0);  
         glVertex2i(0,       220);
         glVertex2i(gl.xres, 220);
         glColor3f(0.4, 0.4, 0.4);
@@ -456,10 +445,10 @@ void render(void)
     //glEnd();
     //
     //show boxes as background
-    for (int i=0; i<20; i++) {
+    for (int i = 0; i < 20; i++) {
         glPushMatrix();
-        glTranslated(gl.box[i][0],gl.box[i][1],gl.box[i][2]);
-        glColor3f(0.2, 0.2, 0.2);
+        glTranslated(gl.box[i][0], gl.box[i][1], gl.box[i][2]);
+        glColor3f(1, 1, 1);
         glBegin(GL_QUADS);
             glVertex2i( 0,  0);
             glVertex2i( 0, 30);
@@ -484,7 +473,8 @@ void render(void)
     float tx = (float)ix / 8.0;
     float ty = (float)iy / 2.0;
     glBegin(GL_QUADS);
-        if( gl.walk == 1) // walk right
+	// walk right
+        if (gl.walk == 1)
         {
             glTexCoord2f(tx,      ty+.5); glVertex2i(cx-w, cy-h);
             glTexCoord2f(tx,      ty);    glVertex2i(cx-w, cy+h);
@@ -492,7 +482,7 @@ void render(void)
             glTexCoord2f(tx+.125, ty+.5); glVertex2i(cx+w, cy-h);
         }
 
-        else // walk left
+        else 
         {
             glTexCoord2f(tx,      ty+.5); glVertex2i(cx+w, cy-h);
             glTexCoord2f(tx,      ty);    glVertex2i(cx+w, cy+h);
@@ -515,5 +505,4 @@ void render(void)
     ggprint8b(&r, 16, c, "left arrow  <- walk left");
     ggprint8b(&r, 16, c, "frame: %i", gl.walkFrame);
 }
-
 
