@@ -62,6 +62,7 @@ public:
     double oobillion;
     struct timespec timeStart, timeEnd, timeCurrent;
     struct timespec walkTime;
+    struct timespec explosionTime;
     Timers() {
         physicsRate = 1.0 / 30.0;
         oobillion = 1.0 / 1e9;
@@ -81,15 +82,21 @@ public:
 
 class Global {
 public:
-        int keys[65536]; // oxooooffff
+    // int keys[65536]; // oxooooffff
     int done;
     int xres, yres;
     int walk;
+    int explosion;
     int walkFrame;
+    int explosionFrame;
     double delay;
+    double explosionDelay;
     Ppmimage *walkImage;
+    Ppmimage *explosionImage;
     GLuint walkTexture;
+    GLuint explosionTexture;
     Vec box[20];
+    char keys[65536];
     Global() {
         done=0;
         xres=800;
@@ -98,13 +105,17 @@ public:
         walkFrame=0;
         walkImage=NULL;
         delay = 0.1;
+        explosion=0;
+        explosionFrame=0;
+        explosionImage=NULL;
+		explosionDelay = 0.1;
         for (int i=0; i<20; i++) {
             box[i][0] = rnd() * xres;
             box[i][1] = rnd() * (yres-220) + 220.0;
             box[i][2] = 0.0;
         }
+        memset(keys, 0, 65536);
     }
-    //memset(keys, 0, 65536);
 } gl;
 
 int main(void)
@@ -245,6 +256,8 @@ void initOpengl(void)
     //
     system("convert ./images/walk.gif ./images/walk.ppm");
     gl.walkImage = ppm6GetImage("./images/walk.ppm");
+    system("convert ./images/explosion.gif ./images/explosion.ppm");
+    gl.explosionImage = ppm6GetImage("./images/explosion.ppm");
     int w = gl.walkImage->width;
     int h = gl.walkImage->height;
     //
@@ -265,6 +278,19 @@ void initOpengl(void)
                             GL_RGBA, GL_UNSIGNED_BYTE, walkData);
     free(walkData);
     unlink("./images/walk.ppm");
+  
+	/*******EXPLOSION*******/
+    int w2 = gl.explosionImage->width;
+    int h2 = gl.explosionImage->height;
+ 
+    glGenTextures(1, &gl.explosionTexture);
+    glBindTexture(GL_TEXTURE_2D, gl.explosionTexture);
+	unsigned char *explosionData = buildAlphaData(gl.explosionImage); 
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w2, h2, 0,
+                            GL_RGBA, GL_UNSIGNED_BYTE, explosionData);
+    
+    free(explosionData);
+    unlink("./images/explosion.ppm");
     //-------------------------------------------------------------------------
 }
 
@@ -310,6 +336,36 @@ void checkMouse(XEvent *e)
     }
 }
 
+void screenCapture()
+{
+    static int num = 0;
+    unsigned char *data = new unsigned char[gl.xres*gl.yres*3];
+    glReadPixels(0, 0, gl.xres, gl.yres, GL_RGB, GL_UNSIGNED_BYTE, data);
+    char ts[64];
+    sprintf(ts, "pic%03i.ppm", num++);
+    FILE *fpo = fopen(ts,"w"); 
+    //FILE *fpo = fopen("pic.ppm", "w"); 
+    if (fpo) {
+    fprintf(fpo, "P6\n");
+    fprintf(fpo, "%i %i\n", gl.xres, gl.yres);
+    fprintf(fpo, "255\n");
+    unsigned char *p = data;
+    p += ((gl.yres-1) * gl.xres*3);
+    //for (int i = 0; i < (gl.xres*gl.yres*3); i++) {
+    //    fprintf(fpo, "%c", *(p+i));
+    //upright immage, seems to work
+    for (int i = 0; i < gl.yres; i++) {
+        for (int j = 0; j < gl.xres*3; j++) {
+            fprintf(fpo, "%c", *(p+j));
+        }
+        p = p - (gl.xres * 3);
+    }
+    fclose(fpo);
+    }
+    delete [] data;
+
+}
+
 void checkKeys(XEvent *e)
 {
     //keyboard input?
@@ -333,6 +389,9 @@ void checkKeys(XEvent *e)
     
         if (shift) {}
     switch (key) {
+        case XK_s:
+            screenCapture();
+        break;
         case XK_w:
             timers.recordTime(&timers.walkTime);
             //gl.walk ^= 1;
@@ -391,7 +450,8 @@ void physics(void)
         //man is walking...
         //when time is up, advance the frame.
         timers.recordTime(&timers.timeCurrent);
-        double timeSpan = timers.timeDiff(&timers.walkTime, &timers.timeCurrent);
+        double timeSpan = 
+        timers.timeDiff(&timers.walkTime, &timers.timeCurrent);
         if (timeSpan > gl.delay) {
             //advance
             ++gl.walkFrame;
@@ -400,20 +460,36 @@ void physics(void)
             timers.recordTime(&timers.walkTime);
         }
         
-	for (int i=0; i<20; i++) {
-	    if (gl.walk == 1) {
-		// boxes move left
+    for (int i=0; i<20; i++) {
+        if (gl.walk == 1) {
+        // boxes move left
                 gl.box[i][0] -= 2.0 * (0.05 / gl.delay); 
                 if (gl.box[i][0] < -10.0) 
                     gl.box[i][0] += gl.xres + 10.0;
             } else if (gl.walk == 2) {
-		// boxes move right
+        // boxes move right
                 gl.box[i][0] += 2.0 * (0.05 / gl.delay);  
                 if (gl.box[i][0] > gl.xres + 10.0) 
                     gl.box[i][0] -= gl.xres + 10.0;
               }
         }
-    } 
+    }
+	
+	if (gl.explosion || gl.keys[XK_e]) {
+        timers.recordTime(&timers.timeCurrent);
+        double timeSpan = 
+        timers.timeDiff(&timers.walkTime, &timers.timeCurrent);
+        if (timeSpan > gl.delay) {
+            //advance
+            ++gl.explosionFrame;
+            if (gl.explosionFrame >= 9) {
+                gl.explosionFrame = 0;
+				gl.explosion = 0;
+			}
+            timers.recordTime(&timers.explosionTime);
+        }
+	 } 
+
 }
 
 void render(void)
@@ -473,7 +549,7 @@ void render(void)
     float tx = (float)ix / 8.0;
     float ty = (float)iy / 2.0;
     glBegin(GL_QUADS);
-	// walk right
+    // walk right
         if (gl.walk == 1)
         {
             glTexCoord2f(tx,      ty+.5); glVertex2i(cx-w, cy-h);
@@ -501,8 +577,39 @@ void render(void)
     ggprint8b(&r, 16, c, "W   Walk cycle");
     ggprint8b(&r, 16, c, "+   faster");
     ggprint8b(&r, 16, c, "-   slower");
+    ggprint8b(&r, 16, c, "F -  fire");
     ggprint8b(&r, 16, c, "right arrow -> walk right");
     ggprint8b(&r, 16, c, "left arrow  <- walk left");
+    ggprint8b(&r, 16, c, "S - Screen print");
     ggprint8b(&r, 16, c, "frame: %i", gl.walkFrame);
+	
+	// explosion
+	if (gl.keys[XK_e]) {
+    	float h2 = 200.0;
+    	float w2 = h * 0.5;
+    	glPushMatrix();
+   		glColor3f(1.0, 1.0, 1.0);
+    	glBindTexture(GL_TEXTURE_2D, gl.explosionTexture);
+    	glEnable(GL_ALPHA_TEST);
+    	glAlphaFunc(GL_GREATER, 0.0f);
+    	glColor4ub(255,255,255,255);
+    	int ix = gl.explosionFrame % 9;
+    	int iy = 0;
+    	if (gl.explosionFrame >= 9)
+        	iy = 1;
+    	float tx2 = (float)ix / 8.0;
+    	float ty2 = (float)iy / 2.0;
+    	glBegin(GL_QUADS);
+        if (gl.keys[XK_e])
+        {
+            glTexCoord2f(tx2,      ty2+.5); glVertex2i(cx-w2, cy-h2);
+            glTexCoord2f(tx2,      ty2);    glVertex2i(cx-w2, cy+h2);
+            glTexCoord2f(tx2+.125, ty2);    glVertex2i(cx+w2, cy+h2);
+            glTexCoord2f(tx2+.125, ty2+.5); glVertex2i(cx+w2, cy-h2);
+        }
+    	glEnd();
+    	glPopMatrix();
+    	glBindTexture(GL_TEXTURE_2D, 0);
+    	glDisable(GL_ALPHA_TEST);
+	} 
 }
-
